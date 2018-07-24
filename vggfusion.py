@@ -42,7 +42,8 @@ def get_activation(model, layer_numbers, input_image):
     outs = []
     out = input_image
     for i in range(max(layer_numbers)+1):
-        out = model.features[i](out)
+        with torch.no_grad():
+            out = model.features[i](out)
         if i in layer_numbers:
             outs.append(np.rollaxis(out.detach().cpu().numpy()[0], 0, 3))
     return outs
