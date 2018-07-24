@@ -8,7 +8,10 @@ def lowpass(s, lda, npad):
     return tikhonov_filter(s, lda, npad)
 
 def c3(s):
-    s3 = np.dstack([s, s, s])
+    if s.ndim == 2:
+        s3 = np.dstack([s, s, s])
+    else:
+        s3 = s
     return np.rollaxis(s3, 2, 0)[None, :, :, :]
 
 def l1_features(out):
@@ -22,7 +25,7 @@ def l1_features(out):
 def fusion_strategy(feat_a, feat_b, source_a, source_b, unit):
     
     m, n = feat_a.shape
-    m1, n1 = source_a.shape
+    m1, n1 = source_a.shape[:2]
     weight_ave_temp1 = np.zeros((m1, n1))
     weight_ave_temp2 = np.zeros((m1, n1))
     
@@ -33,8 +36,18 @@ def fusion_strategy(feat_a, feat_b, source_a, source_b, unit):
             
             weight_ave_temp1[(i-2)*unit+1:(i-1)*unit+1, (j-2)*unit+1:(j-1)*unit+1] = A1 / (A1+A2)
             weight_ave_temp2[(i-2)*unit+1:(i-1)*unit+1, (j-2)*unit+1:(j-1)*unit+1] = A2 / (A1+A2)
-            
-    gen = source_a * weight_ave_temp1 + source_b * weight_ave_temp2
+
+    if source_a.ndim == 3:
+        weight_ave_temp1 = weight_ave_temp1[:, :, None]
+    source_a_fuse = source_a * weight_ave_temp1
+    if source_b.ndim == 3:
+        weight_ave_temp2 = weight_ave_temp2[:, :, None]
+    source_b_fuse = source_b * weight_ave_temp2
+    
+    if source_a.ndim == 3 or source_b.ndim == 3:
+        gen = np.atleast_3d(source_a_fuse) + np.atleast_3d(source_b_fuse)
+    else:
+        gen = source_a_fuse + source_b_fuse
     
     return gen
 
@@ -79,8 +92,12 @@ def fuse(vis, ir, model=None):
             saliency_max = saliency_current
         else:
             saliency_max = np.maximum(saliency_max, saliency_current)
-
-    low_fused = (vis_low + ir_low) / 2
+            
+    if vis_low.ndim == 3 or ir_low.ndim == 3:
+        low_fused = np.atleast_3d(vis_low) + np.atleast_3d(ir_low)
+    else:
+        low_fused = vis_low + ir_low
+    low_fused = low_fused / 2
     high_fused = saliency_max
     return low_fused + high_fused
     
